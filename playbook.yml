@@ -1,0 +1,56 @@
+---
+- hosts: servers
+  
+  tasks:
+      - ping: ~
+
+      - name: Update apt cache
+        become: yes
+        apt:
+            update_cache: yes
+            cache_valid_time: 86400  # one day
+
+      - name: Upgrade installed packages and install new dependencies
+        become: yes
+        apt:
+            upgrade: safe
+
+      - name: Remove unrequired dependencies and unused packages
+        become: yes
+        apt:
+            autoremove: yes
+            autoclean: yes
+
+      - name: Check if we need a reboot
+        become: no
+        stat: 
+            path: /var/run/reboot-required
+        register: file_reboot_required
+
+
+      # "meta: end_play" aborts the rest of the tasks in the current «tasks:»
+      # section, for the current webserver
+      # "when:" clause ensures that the "meta: end_play" only triggers if the
+      # current webserver does _not_ need a reboot
+      - meta: end_host
+        when: file_reboot_required.stat.exists == False
+
+      - name: reboot node
+        shell: sleep 2 && shutdown -r now "Reboot triggered by ansible @ tragic-solitude"
+        async: 1
+        poll: 0
+        ignore_errors: yes
+
+      # Poll ssh port until we get a tcp connect
+      - name: Wait for node to finish boot
+        become: no
+        local_action: wait_for host={{ ansible_ssh_host }}
+            port={{ ansible_port }}
+            state=started
+            delay=5
+            timeout=600
+
+      # Give sshd time to start
+      - name: Wait for sshd to start
+        pause: 
+            seconds: 15
