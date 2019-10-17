@@ -4,6 +4,11 @@
   tasks:
       - ping: ~
 
+      - name: force use of apt-get
+        become: yes
+        apt:
+            force_apt_get: yes
+
       - name: Update apt cache
         become: yes
         apt:
